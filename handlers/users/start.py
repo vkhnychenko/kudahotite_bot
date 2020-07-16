@@ -11,7 +11,7 @@ from aiogram.dispatcher import FSMContext
 db = DBCommands()
 
 
-@dp.message_handler(CommandStart())
+@dp.message_handler(CommandStart(), state='*')
 async def bot_start(message: types.Message):
     await db.add_new_user()
     await message.answer(f'Привет, {message.from_user.full_name}! Здесь ты можешь заказать любой значок по фото',

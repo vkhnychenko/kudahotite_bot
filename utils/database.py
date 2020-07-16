@@ -41,12 +41,10 @@ class DBCommands:
         return new_user
 
     async def get_user(self, user_id):
-        user = await User.query.where(User.user_id == user_id).gino.first()
-        return user
+        return await User.query.where(User.user_id == user_id).gino.first()
 
     async def get_all_users(self):
-        users = await User.query.gino.all()
-        return users
+        return await User.query.gino.all()
 
     async def get_quantity_order(self):
         order_list = await OrderList.query.gino.all()
@@ -66,6 +64,11 @@ class DBCommands:
 
     async def clean_order_list(self):
         await OrderList.delete.gino.all()
+
+    async def get_order_list(self):
+        return await OrderList.query.gino.all()
+
+
 
 
 async def create_db():

@@ -15,20 +15,19 @@ db = DBCommands()
 
 
 @rate_limit(5, 'help')
-@dp.message_handler(CommandHelp(), filters.IDFilter(user_id=ADMIN_ID))
+@dp.message_handler(CommandHelp(), filters.IDFilter(user_id=ADMIN_ID), state='*')
 async def bot_help(message: types.Message):
     text = [
         'Список команд: ',
         '/start - Начать диалог',
         '/help - Получить справку',
-        '/status - Проверить количество заказов'
         '/clear - Обнулить список заказавших',
-        '/mailing - сделать рассылку по пользователям'
+        '/mailing - сделать рассылку по всем пользователям',
     ]
     await message.answer('\n'.join(text))
 
 
-@dp.message_handler(filters.IDFilter(user_id=ADMIN_ID), commands=['clear'])
+@dp.message_handler(filters.IDFilter(user_id=ADMIN_ID), commands=['clear'], state='*')
 async def clear_handler(message: types.Message):
     try:
         await db.clean_order_list()
@@ -37,7 +36,7 @@ async def clear_handler(message: types.Message):
         await message.answer(f'Произошла ошибка: {e}')
 
 
-@dp.message_handler(filters.IDFilter(user_id=ADMIN_ID),commands=['mailing'])
+@dp.message_handler(filters.IDFilter(user_id=ADMIN_ID),commands=['mailing'], state='*')
 async def mailing_handler(message: types.Message):
     await message.answer('Пришлите текст рассылки')
     await Mailing.text.set()
@@ -45,16 +44,16 @@ async def mailing_handler(message: types.Message):
 
 @dp.message_handler(state=Mailing.text)
 async def mailing_handler(message: types.Message, state: FSMContext):
-    await message.answer(f'Отправить рассылку? {message.text}',reply_markup=kb.confirm)
+    await message.answer(f'Кому сделать рассылку?\n {message.text}', reply_markup=kb.confirm)
     await state.update_data(text=message.text)
     await Mailing.confirm.set()
 
 
-@dp.callback_query_handler(lambda call: call.data in ['yes', 'no'], state=Mailing.confirm)
+@dp.callback_query_handler(lambda call: call.data in ['all', 'order'], state=Mailing.confirm)
 async def confirm_mailing(call: CallbackQuery, state: FSMContext):
-    if call.data == 'yes':
-        data = await state.get_data()
-        text = data.get('text')
+    data = await state.get_data()
+    text = data.get('text')
+    if call.data == 'all':
         try:
             users = await db.get_all_users()
             for user in users:
@@ -62,15 +61,12 @@ async def confirm_mailing(call: CallbackQuery, state: FSMContext):
             await call.message.answer('Рассылка успешно выполнена')
         except Exception as e:
             await call.message.answer(f'Во время рассылки произола ошибка: {e}')
-    if call.data == 'no':
-        await call.message.answer('Пришли другой текст рассылки')
-        await Mailing.text.set()
-
-
-@dp.message_handler(filters.IDFilter(user_id=ADMIN_ID), commands=['status'])
-async def mailing_handler(message: types.Message):
-    try:
-        quantity = await db.get_quantity_order()
-        await message.answer(f'Количество заказов: {quantity}')
-    except Exception as e:
-        await message.answer('Произошла ошибка попробуйте позже')
+    if call.data == 'order':
+        try:
+            order_list = await db.get_order_list()
+            users = set(order.user_id for order in order_list)
+            for user in users:
+                await bot.send_message(user, text=text)
+        except Exception as e:
+            await call.message.answer('Произошла ошибка попробуйте позже')
+    await state.reset_state()
